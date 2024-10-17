@@ -117,21 +117,21 @@ def generate_rsa_keypair():
     return private_bytes, public_bytes
 
 # Generate QR code with encrypted data
-def generate_qr_code(encrypted_aes_key, ciphertext, nonce, file_name):
+def generate_qr_code(encrypted_aes_key, ciphertext, invalidation_id, nonce, file_name):
     import base64
     # Convert data to base64
     encrypted_aes_key_b64 = base64.b64encode(encrypted_aes_key).decode('utf-8')
     ciphertext_b64 = base64.b64encode(ciphertext).decode('utf-8')
     nonce_b64 = base64.b64encode(nonce).decode('utf-8')
-    
+    invalidation_id_b64 = base64.b64encode(invalidation_id.encode()).decode('utf-8')
     # Combine the data
-    qr_data = f"{encrypted_aes_key_b64},{ciphertext_b64},{nonce_b64}"
+    qr_data = f"{encrypted_aes_key_b64},{ciphertext_b64},{nonce_b64},{invalidation_id_b64}"
     
     # Generate QR code
     qr = qrcode.QRCode(
         version=None,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=10,
+        box_size=16,
         border=4,
     )
     qr.add_data(qr_data)
@@ -155,14 +155,14 @@ def decode_qr_code(file_name):
         raise ValueError("Failed to decode QR code")
     
     # Extract data from the decoded QR code
-    encrypted_aes_key_b64, ciphertext_b64, nonce_b64 = data.split(',')
+    encrypted_aes_key_b64, ciphertext_b64, nonce_b64, invalidation_id_b64 = data.split(',')
     
     # Convert from base64 to bytes
     encrypted_aes_key = base64.b64decode(encrypted_aes_key_b64)
     ciphertext = base64.b64decode(ciphertext_b64)
     nonce = base64.b64decode(nonce_b64)
-    
-    return encrypted_aes_key, ciphertext, nonce
+    invalidation_id = base64.b64decode(invalidation_id_b64).decode('utf-8')
+    return encrypted_aes_key, ciphertext, nonce, invalidation_id
 
 def zkp_protocol():
     # Define the consistent filename for the QR code
@@ -201,8 +201,8 @@ def zkp_protocol():
     invalidation_id = secrets.token_hex(16)
     print(f"Invalidation ID: {invalidation_id}")
 
-    # Step 8: Create proof data
-    proof_data = f"{a},{s},{y},{invalidation_id}"
+    # Step 8: Create proof data (excluding invalidation_id)
+    proof_data = f"{a},{s},{y}"
 
     # Step 9: User generates a symmetric key for AES encryption
     aes_key = AESGCM.generate_key(bit_length=128)
@@ -213,8 +213,8 @@ def zkp_protocol():
     # Step 11: Encrypt the AES key with the gate's RSA public key
     encrypted_aes_key = encrypt_symmetric_key_with_rsa_public_key(aes_key, gate_public_bytes)
 
-    # Step 12: Combine the encrypted AES key, ciphertext, and nonce into the QR code
-    generate_qr_code(encrypted_aes_key, ciphertext, nonce, qr_file_name)
+    # Step 12: Combine the encrypted AES key, ciphertext, nonce, and invalidation_id into the QR code
+    generate_qr_code(encrypted_aes_key, ciphertext, invalidation_id, nonce, qr_file_name)
 
     # Display the QR code for scanning (you can skip this for automation)
     qr_img = Image.open(qr_file_name)
@@ -222,7 +222,7 @@ def zkp_protocol():
 
     # Simulate scanning the QR code
     try:
-        encrypted_aes_key_decoded, ciphertext_decoded, nonce_decoded = decode_qr_code(qr_file_name)
+        encrypted_aes_key_decoded, ciphertext_decoded, nonce_decoded, invalidation_id_decoded = decode_qr_code(qr_file_name)
     except ValueError as e:
         print(f"Error decoding QR code: {e}")
         return
@@ -234,9 +234,12 @@ def zkp_protocol():
     decrypted_proof_data = decrypt_proof_data_with_symmetric_key(ciphertext_decoded, nonce_decoded, aes_key_gate)
     print(f"Decrypted proof data: {decrypted_proof_data}")
 
-    # Step 15: Parse and verify the decrypted proof data
-    a_decoded, s_decoded, y_decoded, id_decoded = decrypted_proof_data.split(',')
-    a_decoded, s_decoded, y_decoded = int(a_decoded), int(s_decoded), int(y_decoded)
+    # Step 15: Parse and verify the decrypted proof data (now only three values)
+    a_decoded, s_decoded, y_decoded = decrypted_proof_data.split(',')
+    a_decoded = int(a_decoded)
+    s_decoded = int(s_decoded)
+    y_decoded = int(y_decoded)
+    id_decoded = invalidation_id_decoded  # Use the invalidation ID from the QR code directly
 
     # Step 16: Gate verifies the proof
     if verify_proof(p, g, y_decoded, a_decoded, e, s_decoded):
