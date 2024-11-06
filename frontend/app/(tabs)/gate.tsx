@@ -2,14 +2,27 @@ import React, { useEffect, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 import Icon from "react-native-vector-icons/FontAwesome";
+import { verifyProof, verifyPublicKey } from '@/utils';
+import { zkContract } from "@/constants/contracts";
 
 export default function WebQRCodeScanner() {
     const [isLoading, setIsLoading] = useState(false);
-    const [isVerified, setIsVerified] = useState(null);
+    const [isVerified, setIsVerified] = useState<null | boolean>(null);
 
-    const handleQRCodeScanned = (data: string) => {
+    const handleQRCodeScanned = async (data: string) => {
         console.log('Scanned QR Code:', data);
         setIsLoading(true);
+        // Dummy data for testing
+        if (verifyProof(23, 5, 8, 19, 3, 6)) {
+            await verifyPublicKey(8);
+            await zkContract.invalidatePublicKey(8);
+            // TODO: send invalidation ID to the server
+            setIsVerified(true);
+        } else {
+            setIsVerified(false);
+        }
+        setTimeout(() => setIsVerified(null), 2000);
+        setIsLoading(false);
     };
 
     useEffect(() => {
