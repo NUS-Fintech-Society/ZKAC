@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
-import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
+import React, { useState } from 'react';
+import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
+import { ActivityIndicator, View, StyleSheet, Text, Button } from 'react-native';
 import Icon from "react-native-vector-icons/FontAwesome";
 import { verifyProof, verifyPublicKey } from '@/utils';
 import { zkContract } from "@/constants/contracts";
@@ -8,9 +8,9 @@ import { zkContract } from "@/constants/contracts";
 export default function WebQRCodeScanner() {
     const [isLoading, setIsLoading] = useState(false);
     const [isVerified, setIsVerified] = useState<null | boolean>(null);
+    const [permission, requestPermission] = useCameraPermissions();
 
-    const handleQRCodeScanned = async (data: string) => {
-        console.log('Scanned QR Code:', data);
+    const handleQRCodeScanned = async (data: BarcodeScanningResult) => {
         setIsLoading(true);
         // Dummy data for testing
         if (verifyProof(23, 5, 8, 19, 3, 6)) {
@@ -25,21 +25,20 @@ export default function WebQRCodeScanner() {
         setIsLoading(false);
     };
 
-    useEffect(() => {
-        const qrCodeScanner = new Html5Qrcode('reader');
-        qrCodeScanner.start(
-            { facingMode: 'environment' },
-            {
-                fps: 10,
-            },
-            (decodedText) => handleQRCodeScanned(decodedText),
-            () => { }
-        );
+    if (!permission) {
+        // Camera permissions are still loading.
+        return <View />;
+    }
 
-        return () => {
-            qrCodeScanner.stop().catch(console.warn);
-        };
-    }, []);
+    if (!permission.granted) {
+        // Camera permissions are not granted yet.
+        return (
+            <View style={styles.container}>
+                <Text style={styles.message}>We need your permission to show the camera</Text>
+                <Button onPress={requestPermission} title="grant permission" />
+            </View>
+        );
+    }
 
     return <View style={styles.container}>
 
@@ -66,26 +65,39 @@ export default function WebQRCodeScanner() {
             </View>
         )}
 
-        <div id="reader" style={{ width: '100%', height: '100%' }} />
+        <CameraView style={styles.camera} facing='back' barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={handleQRCodeScanned}>
+            <View style={styles.buttonContainer} />
+        </CameraView>
     </View>
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
+        justifyContent: 'center',
     },
-    overlay: {
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 2,
-        backgroundColor: "rgba(0, 0, 0, 0.6)",
+    message: {
+        textAlign: 'center',
+        paddingBottom: 10,
+    },
+    camera: {
+        flex: 1,
+    },
+    buttonContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        backgroundColor: 'transparent',
+        margin: 64,
+    },
+    button: {
+        flex: 1,
+        alignSelf: 'flex-end',
+        alignItems: 'center',
+    },
+    text: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: 'white',
     },
     verifiedText: {
         color: "green",
@@ -97,4 +109,15 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: "bold",
     },
+    overlay: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 2,
+        backgroundColor: "rgba(0, 0, 0, 0.6)",
+    }
 });

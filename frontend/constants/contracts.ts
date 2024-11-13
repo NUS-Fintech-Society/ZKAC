@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 
 const providerUrl = "http://localhost:8545";
-const provider = new ethers.providers.JsonRpcProvider(providerUrl);
+const provider = new ethers.JsonRpcProvider(providerUrl);
 
 const zkContractAddress = "0x1234567890123456789012345678901234567890";
 
