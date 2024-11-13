@@ -11,3 +11,6 @@ const abi = [
 ];
 
 export const zkContract = new ethers.Contract(zkContractAddress, abi, provider);
+
+export const g = 2;
+export const p = 23;
